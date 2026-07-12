@@ -2,72 +2,163 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>我的八號球遊戲</title>
+    <title>我的八號球遊戲 - 雙球碰撞！</title>
     <style>
         canvas { background: #0a5c36; display: block; margin: 0 auto; border: 10px solid #5c3a21; }
         body { background: #333; color: white; text-align: center; font-family: sans-serif; }
     </style>
 </head>
 <body>
-    <h1>我的 2D 撞球遊戲</h1>
-    <p>移動滑鼠看看球桿如何繞著白球旋轉！</p>
+    <h1>我的 2D 撞球遊戲 (雙球版)</h1>
+    <p>瞄準那顆紅球，把它撞飛吧！</p>
     <canvas id="gameCanvas" width="800" height="400"></canvas>
 
     <script>
         const canvas = document.getElementById("gameCanvas");
         const ctx = canvas.getContext("2d");
 
-        // 白球的初始位置
-        let ballX = 200;
-        let ballY = 200;
-        let ballRadius = 15;
+        // 建立一個球的類別 (這樣以後要加 15 顆球都很方便)
+        class Ball {
+            constructor(x, y, color) {
+                this.x = x;
+                this.y = y;
+                this.vx = 0;
+                this.vy = 0;
+                this.radius = 15;
+                this.color = color;
+            }
 
-        // 滑鼠目前座標
-        let mouseX = 0;
-        let mouseY = 0;
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                this.vx *= 0.98; // 摩擦力
+                this.vy *= 0.98;
 
-        // 監聽滑鼠移動事件
-        canvas.addEventListener("mousemove", (event) => {
+                if (Math.abs(this.vx) < 0.05) this.vx = 0;
+                if (Math.abs(this.vy) < 0.05) this.vy = 0;
+
+                // 邊界反彈
+                if (this.x - this.radius < 0 || this.x + this.radius > canvas.width) this.vx = -this.vx;
+                if (this.y - this.radius < 0 || this.y + this.radius > canvas.height) this.vy = -this.vy;
+            }
+
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+                ctx.closePath();
+            }
+        }
+
+        // 宣告兩顆球：白球與紅球
+        const whiteBall = new Ball(200, 200, "white");
+        const redBall = new Ball(500, 200, "red");
+
+        // 滑鼠與蓄力
+        let mouseX = 0, mouseY = 0, isPressing = false, power = 0;
+        const maxPower = 80;
+
+        canvas.addEventListener("mousemove", (e) => {
             const rect = canvas.getBoundingClientRect();
-            mouseX = event.clientX - rect.left;
-            mouseY = event.clientY - rect.top;
+            mouseX = e.clientX - rect.left;
+            mouseY = e.clientY - rect.top;
+            if (isPressing) {
+                let dx = mouseX - whiteBall.x;
+                let dy = mouseY - whiteBall.y;
+                power = Math.min(Math.sqrt(dx*dx + dy*dy), maxPower);
+            }
         });
 
-        // 遊戲主要畫面更新迴圈
+        canvas.addEventListener("mousedown", () => {
+            // 兩顆球都停下來時才能打
+            if (whiteBall.vx === 0 && whiteBall.vy === 0 && redBall.vx === 0 && redBall.vy === 0) {
+                isPressing = true;
+            }
+        });
+
+        canvas.addEventListener("mouseup", () => {
+            if (isPressing) {
+                isPressing = false;
+                let dx = mouseX - whiteBall.x;
+                let dy = mouseY - whiteBall.y;
+                let angle = Math.atan2(dy, dx);
+                let shootSpeed = power * 0.3;
+                whiteBall.vx = -Math.cos(angle) * shootSpeed;
+                whiteBall.vy = -Math.sin(angle) * shootSpeed;
+                power = 0;
+            }
+        });
+
+        // 【核心物理】處理兩球碰撞的進階程式邏輯
+        function checkCollision(b1, b2) {
+            let dx = b2.x - b1.x;
+            let dy = b2.y - b1.y;
+            let distance = Math.sqrt(dx * dx + dy * dy);
+
+            // 如果兩球距離小於兩個半徑相加(30像素)，代表撞到了！
+            if (distance < b1.radius + b2.radius) {
+                
+                // 為了防止球卡在一起，稍微把牠們拉開
+                let overlap = (b1.radius + b2.radius) - distance;
+                let nx = dx / distance;
+                let ny = dy / distance;
+                b1.x -= nx * overlap * 0.5;
+                b1.y -= ny * overlap * 0.5;
+                b2.x += nx * overlap * 0.5;
+                b2.y += ny * overlap * 0.5;
+
+                // 國中物理：動量守恆與能量交換公式
+                let kx = b1.vx - b2.vx;
+                let ky = b1.vy - b2.vy;
+                let p = nx * kx + ny * ky;
+
+                // 交換速度，球就會自然彈開
+                if (p > 0) {
+                    b1.vx -= p * nx;
+                    b1.vy -= p * ny;
+                    b2.vx += p * nx;
+                    b2.vy += p * ny;
+                }
+            }
+        }
+
         function drawGame() {
-            // 1. 清空畫布 (重繪綠色球桌)
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // 2. 畫出白球
-            ctx.beginPath();
-            ctx.arc(ballX, ballY, ballRadius, 0, Math.PI * 2);
-            ctx.fillStyle = "white";
-            ctx.fill();
-            ctx.closePath();
+            // 更新物理位置
+            whiteBall.update();
+            redBall.update();
 
-            // 3. 計算球桿的角度 (使用數學公式：反正切函數 Math.atan2)
-            // 計算滑鼠跟白球之間的 X 和 Y 軸距離
-            let dx = mouseX - ballX;
-            let dy = mouseY - ballY;
-            let angle = Math.atan2(dy, dx); // 這會算出球桿該旋轉的角度
+            // 檢查兩顆球有沒有撞在一起
+            checkCollision(whiteBall, redBall);
 
-            // 4. 畫出球桿
-            ctx.save(); // 儲存目前的畫布狀態
-            ctx.translate(ballX, ballY); // 將畫布中心移到白球上
-            ctx.rotate(angle); // 旋轉畫布
+            // 畫出兩顆球
+            whiteBall.draw();
+            redBall.draw();
 
-            // 在白球後方畫一條木頭色的矩形當作球桿
-            ctx.fillStyle = "#8B5A2B"; 
-            // 參數代表：從白球後方 30 像素開始畫，長度 150 像素，粗細 6 像素
-            ctx.fillRect(-180, -3, 150, 6); 
-            
-            ctx.restore(); // 恢復畫布狀態
+            // 畫球桿
+            if (whiteBall.vx === 0 && whiteBall.vy === 0 && redBall.vx === 0 && redBall.vy === 0) {
+                let dx = mouseX - whiteBall.x;
+                let dy = mouseY - whiteBall.y;
+                let angle = Math.atan2(dy, dx);
 
-            // 不斷重複執行這個 function，讓畫面動起來
+                ctx.save();
+                ctx.translate(whiteBall.x, whiteBall.y);
+                ctx.rotate(angle);
+                ctx.fillStyle = "#8B5A2B"; 
+                ctx.fillRect(-180 - power, -3, 150, 6); 
+
+                if (isPressing) {
+                    ctx.fillStyle = "red";
+                    ctx.fillRect(-180 - power, 10, power, 5);
+                }
+                ctx.restore();
+            }
+
             requestAnimationFrame(drawGame);
         }
 
-        // 啟動遊戲
         drawGame();
     </script>
 </body>
