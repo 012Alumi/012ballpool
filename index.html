@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>我的八號球遊戲</title>
+    <style>
+        canvas { background: #0a5c36; display: block; margin: 0 auto; border: 10px solid #5c3a21; }
+        body { background: #333; color: white; text-align: center; font-family: sans-serif; }
+    </style>
+</head>
+<body>
+    <h1>我的 2D 撞球遊戲</h1>
+    <p>移動滑鼠看看球桿如何繞著白球旋轉！</p>
+    <canvas id="gameCanvas" width="800" height="400"></canvas>
+
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+
+        // 白球的初始位置
+        let ballX = 200;
+        let ballY = 200;
+        let ballRadius = 15;
+
+        // 滑鼠目前座標
+        let mouseX = 0;
+        let mouseY = 0;
+
+        // 監聽滑鼠移動事件
+        canvas.addEventListener("mousemove", (event) => {
+            const rect = canvas.getBoundingClientRect();
+            mouseX = event.clientX - rect.left;
+            mouseY = event.clientY - rect.top;
+        });
+
+        // 遊戲主要畫面更新迴圈
+        function drawGame() {
+            // 1. 清空畫布 (重繪綠色球桌)
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 2. 畫出白球
+            ctx.beginPath();
+            ctx.arc(ballX, ballY, ballRadius, 0, Math.PI * 2);
+            ctx.fillStyle = "white";
+            ctx.fill();
+            ctx.closePath();
+
+            // 3. 計算球桿的角度 (使用數學公式：反正切函數 Math.atan2)
+            // 計算滑鼠跟白球之間的 X 和 Y 軸距離
+            let dx = mouseX - ballX;
+            let dy = mouseY - ballY;
+            let angle = Math.atan2(dy, dx); // 這會算出球桿該旋轉的角度
+
+            // 4. 畫出球桿
+            ctx.save(); // 儲存目前的畫布狀態
+            ctx.translate(ballX, ballY); // 將畫布中心移到白球上
+            ctx.rotate(angle); // 旋轉畫布
+
+            // 在白球後方畫一條木頭色的矩形當作球桿
+            ctx.fillStyle = "#8B5A2B"; 
+            // 參數代表：從白球後方 30 像素開始畫，長度 150 像素，粗細 6 像素
+            ctx.fillRect(-180, -3, 150, 6); 
+            
+            ctx.restore(); // 恢復畫布狀態
+
+            // 不斷重複執行這個 function，讓畫面動起來
+            requestAnimationFrame(drawGame);
+        }
+
+        // 啟動遊戲
+        drawGame();
+    </script>
+</body>
+</html>
